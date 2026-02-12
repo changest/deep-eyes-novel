@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String
+  username      String    @unique
+  avatarUrl     String?
+  dailyQuota    Int       @default(50000) // 每日Token限额
+  quotaResetAt  DateTime  @default(now())
+  isPremium     Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  novels        Novel[]
+  usageLogs     UsageLog[]
+}
+
+model Novel {
+  id            String    @id @default(uuid())
+  userId        String
+  title         String
+  genre         String?
+  synopsis      String?
+  status        String    @default("draft") // draft/published/archived
+  settings      String?   // JSON string
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user          User      @relation(fields: [userId], references: [id])
+  chapters      Chapter[]
+  usageLogs     UsageLog[]
+
+  @@index([userId])
+}
+
+model Chapter {
+  id            String    @id @default(uuid())
+  novelId       String
+  chapterNumber Int
+  title         String?
+  content       String
+  promptUsed    String
+  tokensUsed    Int
+  model         String    @default("moonshot-v1-128k")
+  temperature   Float     @default(0.7)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  novel         Novel     @relation(fields: [novelId], references: [id], onDelete: Cascade)
+
+  @@unique([novelId, chapterNumber])
+}
+
+model UsageLog {
+  id            String    @id @default(uuid())
+  userId        String
+  novelId       String?
+  requestType   String    // generate/continue/rewrite
+  inputTokens   Int
+  outputTokens  Int
+  totalTokens   Int
+  createdAt     DateTime  @default(now())
+
+  user          User      @relation(fields: [userId], references: [id])
+  novel         Novel?    @relation(fields: [novelId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
+}
