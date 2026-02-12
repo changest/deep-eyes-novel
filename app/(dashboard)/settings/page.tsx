@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { QuotaInfo } from '@/types'
-import { BarChart3, Coins, Calendar, Sparkles, Zap, Info } from 'lucide-react'
+import { BarChart3, Coins, Calendar, Sparkles, Zap, Info, Key, ChevronRight } from 'lucide-react'
 
 export default function SettingsPage() {
   const [quota, setQuota] = useState<QuotaInfo | null>(null)
@@ -96,6 +97,29 @@ export default function SettingsPage() {
           <div className="text-gray-400 py-8 text-center">无法加载配额信息</div>
         )}
       </div>
+
+      {/* API 配置卡片 */}
+      <Link href="/settings/api">
+        <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-8 border border-white/50 shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-all duration-300 group cursor-pointer">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center">
+                <Key className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-800">AI API 配置</h2>
+                <p className="text-sm text-gray-500">配置您自己的 AI 服务提供商</p>
+              </div>
+            </div>
+            <ChevronRight className="h-5 w-5 text-gray-400 group-hover:text-cyan-500 group-hover:translate-x-1 transition-all" />
+          </div>
+          <div className="mt-4 p-4 bg-gradient-to-r from-violet-50 to-purple-50 rounded-2xl">
+            <p className="text-sm text-gray-600">
+              支持 OpenAI、Kimi、Claude 等多种 AI 服务，也可配置自定义 API 地址
+            </p>
+          </div>
+        </div>
+      </Link>
 
       {/* 关于卡片 */}
       <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-8 border border-white/50 shadow-[0_4px_20px_rgba(0,0,0,0.04)]">

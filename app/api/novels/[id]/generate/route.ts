@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { getAuthUser } from '@/lib/auth'
-import { streamGenerate, systemPrompt, type Message } from '@/lib/kimi'
+import { createAIClient, systemPrompt, type Message, decryptApiKey, type AIProvider, providerPresets } from '@/lib/ai-client'
 
 const generateSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required'),
@@ -14,6 +14,41 @@ const generateSchema = z.object({
 
 interface Params {
   params: Promise<{ id: string }>
+}
+
+// 获取用户配置的 AI 客户端
+async function getAIClient(userId: string) {
+  // 查询用户的 API 配置
+  const apiConfig = await prisma.userApiConfig.findUnique({
+    where: { userId },
+  })
+
+  if (apiConfig && apiConfig.isActive && apiConfig.apiKey) {
+    // 使用用户配置的 API
+    return createAIClient({
+      provider: apiConfig.provider as AIProvider,
+      apiKey: decryptApiKey(apiConfig.apiKey),
+      baseUrl: apiConfig.baseUrl || undefined,
+      model: apiConfig.model,
+    })
+  }
+
+  // 使用默认配置（从环境变量读取）
+  const defaultProvider = (process.env.DEFAULT_AI_PROVIDER || 'kimi') as AIProvider
+  const defaultApiKey = process.env.KIMI_API_KEY || process.env.OPENAI_API_KEY || ''
+  const defaultBaseUrl = process.env.KIMI_BASE_URL || process.env.OPENAI_BASE_URL
+  const defaultModel = process.env.DEFAULT_AI_MODEL || 'moonshot-v1-128k'
+
+  if (!defaultApiKey) {
+    throw new Error('未配置 API Key，请在设置中添加您的 AI API 配置')
+  }
+
+  return createAIClient({
+    provider: defaultProvider,
+    apiKey: defaultApiKey,
+    baseUrl: defaultBaseUrl,
+    model: defaultModel,
+  })
 }
 
 export async function POST(request: NextRequest, { params }: Params) {
@@ -77,6 +112,9 @@ export async function POST(request: NextRequest, { params }: Params) {
     const body = await request.json()
     const { prompt, genre, style, temperature, previousContext } = generateSchema.parse(body)
 
+    // 获取 AI 客户端
+    const aiClient = await getAIClient(user.userId)
+
     // Build messages
     const messages: Message[] = [
       { role: 'system', content: systemPrompt },
@@ -117,7 +155,7 @@ export async function POST(request: NextRequest, { params }: Params) {
           // Send initial metadata
           controller.enqueue(encoder.encode(JSON.stringify({ type: 'start' }) + '\n'))
 
-          for await (const chunk of streamGenerate(messages, { temperature })) {
+          for await (const chunk of aiClient.streamGenerate(messages, { temperature })) {
             fullContent += chunk
             outputTokens += Math.ceil(chunk.length / 2) // Rough estimation
             controller.enqueue(encoder.encode(JSON.stringify({ type: 'chunk', content: chunk }) + '\n'))
@@ -193,7 +231,7 @@ export async function POST(request: NextRequest, { params }: Params) {
 
     console.error('Generate error:', error)
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Internal server error' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     )
   }
